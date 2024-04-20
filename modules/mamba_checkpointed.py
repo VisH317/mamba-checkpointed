@@ -2,12 +2,11 @@ import torch
 import math
 from torch import nn, Tensor
 import torch.nn.functional as F
-import triton
-import triton.language as tl
-# from flashfftconv import FlashFFTConv
+import math
 from modules.mamba_utils import RMSNorm
 from mamba_ssm.ops.selective_scan_interface import selective_scan_fn
 from einops import rearrange, repeat
+from causal_conv1d import causal_conv1d_fn
 
 
 device = torch.device("cuda")
@@ -101,10 +100,17 @@ class S4Checkpointed(nn.Module):
 
 
 class MambaBlock(nn.Module):
-    def __init__(self, d_in: int, d_hidden: int, d_ssm_hidden: int, dt_rank: int, n_conv: int = 5):
+    def __init__(self, d_in: int, d_hidden: int, d_ssm_hidden: int, dt_rank: int, n_conv: int = 4):
         super().__init__()
 
-        self.conv = nn.Conv1d(d_hidden, d_hidden, bias=True, kernel_size=n_conv, groups=d_in, padding=n_conv-3) # convolutions must be much longer to understand gene level relationships
+        # self.conv = nn.Conv1d(d_hidden, d_hidden, bias=True, kernel_size=n_conv, groups=d_in, padding=n_conv-3) # convolutions must be much longer to understand gene level relationships
+        self.conv_weight = nn.Parameter(torch.empty(d_hidden, n_conv))
+        self.conv_bias = nn.Parameter(torch.empty(d_hidden))
+
+        k = math.sqrt(1/(d_hidden * n_conv))
+        torch.nn.init.uniform_(self.conv_weight, -k, k)
+        torch.nn.init.uniform_(self.conv_bias, -k, k)
+
         # TODO: ADD GATING TO the CONVOLUTION
         self.x_proj = nn.Linear(d_in, d_hidden)
         self.norm = RMSNorm()
@@ -117,7 +123,7 @@ class MambaBlock(nn.Module):
     def forward(self, x: Tensor) -> Tensor:
         x_norm = self.norm(x)
         x_in = rearrange(self.x_proj(x_norm), "b l d -> b d l")
-        main_x = rearrange(F.silu(self.conv(x_in)), "b d l -> b l d")
+        main_x = rearrange(causal_conv1d_fn(x_in, self.conv_weight, self.conv_bias, activation="silu"), "b d l -> b l d")
         res_x = F.silu(self.x_res_proj(x_norm))
         o_raw = self.ssm(main_x)
         o_gated = o_raw * res_x
