@@ -50,12 +50,15 @@ class Genome(Dataset):
                 for record in tqdm(SeqIO.parse(f, "fasta"), desc="creating dataset...", total=num_seq):
                     l = len(record.seq)
                     for i in range(l//max_len):
-                        mask_idx = random.randint(25, 1023)
-                        li = [n_to_idx[n.lower() if ix != mask_idx else "<MASK>"] for ix, n in enumerate(record.seq[i*max_len:(i+1)*max_len])]
-                        mask = n_to_idx[record.seq[i*max_len + mask_idx].lower()]
+                        target = torch.as_tensor([n_to_idx[n.lower()] for n in record.seq[i*max_len:(i+1)*max_len]])
+
+                        mask_idx = torch.randint(low=0, high=5, size=target.size())
+                        li = torch.where(mask_idx==0, torch.full_like(target, 16), target)
+
                         s = set(li)
-                        if not (len(s) <= 3 and 15 in s): self.seqs.append((li, mask))
+                        if not (len(s) <= 3 and 15 in s): self.seqs.append((li, target))
                         if i >= max_seq: break
+
             with open("genome_seq.pkl", "wb") as f:
                 pickle.dump(self.seqs, f)
                 logging.info("Data Constructed Successfully")

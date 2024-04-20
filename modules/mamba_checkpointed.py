@@ -7,7 +7,7 @@ import triton.language as tl
 # from flashfftconv import FlashFFTConv
 from modules.mamba_utils import RMSNorm
 from mamba_ssm.ops.selective_scan_interface import selective_scan_fn
-from einops import rearrange
+from einops import rearrange, repeat
 
 
 device = torch.device("cuda")
@@ -50,12 +50,18 @@ class S4Checkpointed(nn.Module):
 
         # BLOCK_SIZE = 32
 
-        # grid = lambda meta: (triton.cdiv(d_hidden * d_in, meta["BLOCK_SIZE"]), )
-        # self.A = torch.empty(d_in, d_hidden).to(device=device)
-        # generate_a[grid](self.A, d_in, d_hidden, BLOCK_SIZE=BLOCK_SIZE)
-        self.A = generate_a(d_in, d_hidden)
+        A = repeat(
+            torch.arange(1, self.d_hidden + 1, dtype=torch.float32, device=device),
+            "n -> d n",
+            d=self.d_in,
+        ).contiguous()
+        A_log = torch.log(A)  # Keep A_log in fp32
+        self.A_log = nn.Parameter(A_log)
+        self.A_log._no_weight_decay = True
 
-        self.D = nn.Parameter(torch.ones(d_in)).cuda()
+        # D "skip" parameter
+        self.D = nn.Parameter(torch.ones(self.d_in, device=device, dtype=torch.float))  # Keep in fp32
+        self.D._no_weight_decay = True
 
         self.x_proj = nn.Linear(d_in, 3 * d_hidden + 2 * d_in + 2 * dt_rank, bias=False)
         self.dt_proj = nn.Linear(dt_rank, d_in, bias=True)
@@ -69,18 +75,19 @@ class S4Checkpointed(nn.Module):
 
     # refactor all these rearranges later haha
     def forward(self, x: Tensor) -> Tensor:
+        A = -torch.exp(self.A_log.float())
         bcd = rearrange(self.x_proj(x), "b l d -> b d l")
         (B, B_local, C, E, F, dt, dt_local) = bcd.split(split_size=[self.d_hidden, self.d_hidden, self.d_hidden, self.d_in, self.d_in, self.dt_rank, self.dt_rank], dim=-2)
         delta = rearrange(self.dt_proj(rearrange(dt, "b d l -> b l d")), "b l d -> b d l")
         delta_local = rearrange(self.dt_local_proj(rearrange(dt_local, "b d l -> b l d")), "b l d -> b d l")
 
-        y = selective_scan_fn(rearrange(x, "b l d -> b d l"), delta, self.A, B, C, self.D, z=None, delta_softplus=True)
-        y_local = selective_scan_fn(rearrange(x, "b l d -> b d l"), delta_local, self.A, B_local, C=torch.ones_like(B), D=None, z=None, delta_softplus=True) # TODO: gating where
+        y = selective_scan_fn(rearrange(x, "b l d -> b d l"), delta, A, B, C, self.D, z=None, delta_softplus=True)
+        y_local = selective_scan_fn(rearrange(x, "b l d -> b d l"), delta_local, A, B_local, C=torch.ones_like(B), D=None, z=None, delta_softplus=True) # TODO: gating where
+
         memory = y_local[:, :, ::self.step]
         att = self.w_O(self.global_attention(x, rearrange(memory, "b d m -> b m d")))
         att_gated = att * rearrange(E, "b d l -> b l d")
 
-        print("y: ", y)
         return rearrange(y, "b d l -> b l d") + att_gated + x * rearrange(F, "b d l -> b l d")
 
 
@@ -109,10 +116,9 @@ class MambaBlock(nn.Module):
 
     def forward(self, x: Tensor) -> Tensor:
         x_norm = self.norm(x)
-
-        main_x = rearrange(F.silu(self.conv(rearrange(self.x_proj(x_norm), "b l d -> b d l"))), "b d l -> b l d")
+        x_in = rearrange(self.x_proj(x_norm), "b l d -> b d l")
+        main_x = rearrange(F.silu(self.conv(x_in)), "b d l -> b l d")
         res_x = F.silu(self.x_res_proj(x_norm))
-
         o_raw = self.ssm(main_x)
         o_gated = o_raw * res_x
         o = self.out_proj(o_gated)
