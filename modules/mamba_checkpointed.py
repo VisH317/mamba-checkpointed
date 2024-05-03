@@ -62,7 +62,7 @@ class S4Checkpointed(nn.Module):
         self.D = nn.Parameter(torch.ones(self.d_in, device=device, dtype=torch.float))  # Keep in fp32
         self.D._no_weight_decay = True
 
-        self.x_proj = nn.Linear(d_in, 3 * d_hidden + 2 * d_in + 2 * dt_rank, bias=False)
+        self.x_proj = nn.Linear(d_in, 4 * d_hidden + 2 * d_in + 2 * dt_rank, bias=False)
         self.dt_proj = nn.Linear(dt_rank, d_in, bias=True)
         self.dt_local_proj = nn.Linear(dt_rank, d_in, bias=True)
 
@@ -74,9 +74,9 @@ class S4Checkpointed(nn.Module):
 
     # refactor all these rearranges later haha
     def forward(self, x: Tensor) -> Tensor:
-        A = -torch.exp(self.A_log.float())
+        # A = -torch.exp(self.A_log.float())
         bcd = rearrange(self.x_proj(x), "b l d -> b d l")
-        (B, B_local, C, E, F, dt, dt_local) = bcd.split(split_size=[self.d_hidden, self.d_hidden, self.d_hidden, self.d_in, self.d_in, self.dt_rank, self.dt_rank], dim=-2)
+        (A, B, B_local, C, E, F, dt, dt_local) = bcd.split(split_size=[self.d_hidden, self.d_hidden, self.d_hidden, self.d_in, self.d_in, self.dt_rank, self.dt_rank], dim=-2)
         delta = rearrange(self.dt_proj(rearrange(dt, "b d l -> b l d")), "b l d -> b d l")
         delta_local = rearrange(self.dt_local_proj(rearrange(dt_local, "b d l -> b l d")), "b l d -> b d l")
 
