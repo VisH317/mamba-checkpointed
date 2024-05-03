@@ -76,7 +76,7 @@ class S4Checkpointed(nn.Module):
     def forward(self, x: Tensor) -> Tensor:
         # A = -torch.exp(self.A_log.float())
         bcd = rearrange(self.x_proj(x), "b l d -> b d l")
-        (A, B, B_local, C, E, F, dt, dt_local) = bcd.split(split_size=[self.d_hidden, self.d_hidden, self.d_hidden, self.d_in, self.d_in, self.dt_rank, self.dt_rank], dim=-2)
+        (A, B, B_local, C, E, F, dt, dt_local) = bcd.split(split_size=[self.d_hidden, self.d_hidden, self.d_hidden, self.d_hidden, self.d_in, self.d_in, self.dt_rank, self.dt_rank], dim=-2)
         delta = rearrange(self.dt_proj(rearrange(dt, "b d l -> b l d")), "b l d -> b d l")
         delta_local = rearrange(self.dt_local_proj(rearrange(dt_local, "b d l -> b l d")), "b l d -> b d l")
 
