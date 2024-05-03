@@ -12,16 +12,16 @@ torch.set_warn_always(False)
 torch.set_default_dtype(torch.float)
 
 # config
-d_in = 64
-d_model = 128
-d_ssm = 192
-dt_rank = 32
+d_in = 128
+d_model = 256
+d_ssm = 384
+dt_rank = 64
 vocab_size = len(n_to_idx.keys())
 
 # train config
 n_epochs = 3
-batch_size = 8
-val_batch_size = 8
+batch_size = 12
+val_batch_size = 4
 val_step = 8
 grad_accum_iter = 8
 
