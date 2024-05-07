@@ -24,6 +24,28 @@ class RMSNorm(nn.Module):
         return out
 
 
+class Pooler(nn.Module):
+    def __init__(self, d_hidden: int) -> None:
+        super().__init__()
+        self.lin = nn.Linear(d_hidden, d_hidden)
+        self.act = nn.Tanh()
+    
+    def forward(self, hidden_states: Tensor) -> Tensor:
+        # pooling is taking first token apparently :skull:
+        out = hidden_states[:, 0]
+        return self.act(self.lin(out))
+    
+    
+class Classifier(nn.Module):
+    def __init__(self, d_hidden: int, num_classes: int, dropout_p = 0.25) -> None:
+        super().__init__()
+        self.lin = nn.Linear(d_hidden, num_classes)
+        self.softmax = nn.Softmax(dim=-1)
+        self.dropout = nn.Dropout(p=dropout_p)
+    
+    def forward(self, x: Tensor) -> Tensor:
+        return self.softmax(self.dropout(self.lin(x)))
+
 # class FFTConv(nn.Module):
 #     def __init__(self   )
 

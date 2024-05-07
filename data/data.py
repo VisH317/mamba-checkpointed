@@ -1,6 +1,7 @@
 from Bio import SeqIO
-from tqdm import tqdm
+from tqdm import tqdm, trange
 from torch.utils.data import DataLoader, Dataset
+from pyfaidx import Fasta
 import pickle
 import random
 import logging
@@ -15,7 +16,7 @@ import torch
 # data loading mechanism
 
 NUM_SEQ = 705
-MAX_LEN = 1000
+MAX_LEN = 2048
 
 n_to_idx = {
     "a": 0,
@@ -37,9 +38,16 @@ n_to_idx = {
     "<MASK>": 16
 }
 
+# class FastaRetriever:
+#     def __init__(self, file_name: str) -> None:
+#         self.genome = Fasta(file_name)
+
+
 class Genome(Dataset):
-    def __init__(self, file_name: str, max_seq: int = 100, num_seq: int = NUM_SEQ, max_len: int = MAX_LEN, existing_data_name: str | None = None) -> None:
+    def __init__(self, file_name: str, max_seq: int = 5000, num_seq: int = NUM_SEQ, max_len: int = MAX_LEN, existing_data_name: str | None = None) -> None:
         self.seqs = []
+
+        MAX_PER_CHR = max_seq
 
         if existing_data_name is not None:
             with open(existing_data_name, "rb") as f:
@@ -49,15 +57,16 @@ class Genome(Dataset):
             with open(file_name) as f:
                 for record in tqdm(SeqIO.parse(f, "fasta"), desc="creating dataset...", total=num_seq):
                     l = len(record.seq)
-                    for i in range(l//max_len):
-                        target = torch.as_tensor([n_to_idx[n.lower()] for n in record.seq[i*max_len:(i+1)*max_len]])
+                    # print(l//max_len)
+                    r = torch.randint(l - max_len - 1, tuple([l]))
+                    for i in trange(min(MAX_PER_CHR, l//max_len)):
+                        target = torch.as_tensor([n_to_idx[n.lower()] for n in record.seq[r[i].item():(r[i].item() + max_len)]])
 
                         mask_idx = torch.randint(low=0, high=5, size=target.size())
                         li = torch.where(mask_idx==0, torch.full_like(target, 16), target)
 
                         s = set(li)
                         if not (len(s) <= 3 and 15 in s): self.seqs.append((li, target))
-                        if i >= max_seq: break
 
             with open("genome_seq.pkl", "wb") as f:
                 pickle.dump(self.seqs, f)
@@ -69,3 +78,5 @@ class Genome(Dataset):
     def __getitem__(self, idx: int) -> tuple[list[int], int]:
         return torch.tensor(self.seqs[idx][0], dtype=torch.long), torch.tensor(self.seqs[idx][1], dtype=torch.long)
 
+if __name__ == "__main__":
+    Genome("genome.fna")

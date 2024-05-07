@@ -12,10 +12,15 @@ torch.set_warn_always(False)
 torch.set_default_dtype(torch.float)
 
 # config
-d_in = 128
-d_model = 256
-d_ssm = 384
-dt_rank = 64
+# d_in = 128
+# d_model = 256
+# d_ssm = 256
+# dt_rank = 64
+# vocab_size = len(n_to_idx.keys())
+d_in = 4
+d_model = 8
+d_ssm = 8
+dt_rank = 2
 vocab_size = len(n_to_idx.keys())
 
 # train config
@@ -30,6 +35,17 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 def collate(x: list[tuple[list[int], int]]):
     return torch.stack([t[0] for t in x]).to(device=device), torch.stack([t[1] for t in x]).to(device=device)
 
+def create_mamba():
+    embed = nn.Embedding(vocab_size, d_in)
+    inner_model = nn.Sequential(
+        MambaBlock(d_in, d_model, d_ssm, dt_rank),
+        MambaBlock(d_in, d_model, d_ssm, dt_rank),
+        MambaBlock(d_in, d_model, d_ssm, dt_rank),
+    )
+
+    return nn.Sequential(embed, inner_model).to(device=device)
+
+
 def train():
 
     #model setup
@@ -43,9 +59,9 @@ def train():
         MambaBlock(d_in, d_model, d_ssm, dt_rank),
     )
 
-    lm_head = LMHead(d_in, vocab_size)
+    lm_head = LMHead(d_in, vocab_size).to(device=device)
 
-    model = nn.Sequential(embed, inner_model, lm_head).to(device=device)
+    model = nn.Sequential(embed, inner_model).to(device=device)
 
     pytorch_total_params = sum(p.numel() for p in model.parameters())
     print("param count: ", pytorch_total_params)
@@ -74,7 +90,7 @@ def train():
         for ix, data in (bar := tqdm(enumerate(train_loader), desc=f"Epoch: {epoch+1}, Loss: N/A, Val: N/A", total=len(train_data)//batch_size)):
             input, target = data
             with torch.cuda.amp.autocast():
-                out = model(input)
+                out = lm_head(model(input))
                 loss = loss_func(out.transpose(2, 1), target)
             
             scaler.scale(loss).backward()
@@ -96,7 +112,7 @@ def train():
                         val_loader_iter = iter(val_loader)
                         input, target = next(val_loader_iter)
                     
-                    out = model(torch.tensor(input, device=device))
+                    out = lm_head(model(torch.tensor(input, device=device)))
                     loss = loss_func(out.transpose(2, 1), torch.tensor(target, device=device))
                     val_losses.append(loss.item())
                     bar.set_description(f"Epoch: {epoch+1}, Loss: {round(losses[-1], 4)}, Val loss: {round(val_losses[-1], 4)}")
@@ -104,6 +120,7 @@ def train():
         scheduler.step()
 
     torch.save(model.state_dict(), "model.pt")
+    torch.save(lm_head.state_dict(), "lmhead.pt")
     with open("loss_data.pkl", "wb") as f:
         pickle.dump([losses, val_losses], f)
     
