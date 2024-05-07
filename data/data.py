@@ -58,6 +58,7 @@ class Genome(Dataset):
                 for record in tqdm(SeqIO.parse(f, "fasta"), desc="creating dataset...", total=num_seq):
                     l = len(record.seq)
                     # print(l//max_len)
+                    if l - max_len - 1 < 0: continue
                     r = torch.randint(l - max_len - 1, tuple([l]))
                     for i in trange(min(MAX_PER_CHR, l//max_len)):
                         target = torch.as_tensor([n_to_idx[n.lower()] for n in record.seq[r[i].item():(r[i].item() + max_len)]])

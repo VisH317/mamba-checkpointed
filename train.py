@@ -48,6 +48,8 @@ def create_mamba():
 
 def train():
 
+    MAX_EPOCH_BATCHES = 10000
+
     #model setup
     embed = nn.Embedding(vocab_size, d_in)
 
