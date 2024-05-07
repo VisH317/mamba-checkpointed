@@ -25,23 +25,28 @@ vocab_size = len(n_to_idx.keys())
 
 # train config
 n_epochs = 3
-batch_size = 16
+batch_size = 2
 val_batch_size = 4
 val_step = 8
-grad_accum_iter = 8
+grad_accum_iter = 16
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 def collate(x: list[tuple[list[int], int]]):
     return torch.stack([t[0] for t in x]).to(device=device), torch.stack([t[1] for t in x]).to(device=device)
 
-def create_mamba():
-    embed = nn.Embedding(vocab_size, d_in)
+def create_mamba(config: dict, has_lmhead: bool = False):
+    embed = nn.Embedding(vocab_size, config["d_in"])
     inner_model = nn.Sequential(
-        MambaBlock(d_in, d_model, d_ssm, dt_rank),
-        MambaBlock(d_in, d_model, d_ssm, dt_rank),
-        MambaBlock(d_in, d_model, d_ssm, dt_rank),
+        MambaBlock(config["d_in"], config["d_model"], config["d_ssm"], config["dt_rank"]),
+        MambaBlock(config["d_in"], config["d_model"], config["d_ssm"], config["dt_rank"]),
+        MambaBlock(config["d_in"], config["d_model"], config["d_ssm"], config["dt_rank"]),
     )
+
+    if has_lmhead: 
+        print(vocab_size)
+        lmhead = LMHead(config["d_in"], vocab_size)
+        return nn.Sequential(embed, inner_model, lmhead).to(device=device)    
 
     return nn.Sequential(embed, inner_model).to(device=device)
 

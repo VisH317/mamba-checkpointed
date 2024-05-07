@@ -11,33 +11,33 @@ import pickle
 default_config = {
     "batch_size": 16,
     "learning_rate": 3e-4,
-    "freeze_foundation": False,
     "grad_accum_steps": 4,
     "dropout_p": 0.25,
     "epoch": 5
 }
 
 default_model_config = {
-    "d_in": 32,
-    "d_model": 64,
-    "d_ssm": 128,
+    "d_in": 64,
+    "d_model": 128,
+    "d_ssm": 192,
     "dt_rank": 32
 }
 
-
-
-
-def finetune(dataset_name: str, pretrained_path: str, train_config: dict = default_config, model_config: dict = default_model_config):
-    model = create_mamba()
+def finetune(dataset_name: str, pretrained_path: str, train_config: dict = default_config, model_config: dict = default_model_config, has_lmhead: bool = False):
+    model = create_mamba(model_config, has_lmhead=has_lmhead)
     pooler = Pooler(model_config["d_model"])
     classifier = Classifier(model_config["d_model"], 2)
 
+    model.load_state_dict(torch.load(pretrained_path), strict=False)
     model = nn.Sequential(model, pooler, classifier).to(device=torch.device("cuda" if torch.cuda.is_available() else "cpu"))
-    model.load_state_dict(pretrained_path)
-    if dataset_name not in train_datasets.keys(): raise KeyError("model finetuning process: dataset name does not exist")
+    if has_lmhead: model = model[:2]
 
+    pytorch_total_params = sum(p.numel() for p in model.parameters())
+    print("param count: ", pytorch_total_params)
+
+    assert dataset_name in train_datasets.keys(), "model finetuning process: dataset name does not exist"
     data = train_datasets[dataset_name]
-    total_len = len(data) / train_config["batch_size"]
+    total_len = len(data) // train_config["batch_size"]
 
     losses = []
 
@@ -52,6 +52,7 @@ def finetune(dataset_name: str, pretrained_path: str, train_config: dict = defau
         optim.zero_grad()
         for ix, data in (bar := tqdm(enumerate(loader), total=total_len, desc=f"finetuning on {dataset_name}, Loss: N/A")):
             x, y_t = data
+            
             y = model(x)
             loss = criterion(y, y_t)
             loss.backward()

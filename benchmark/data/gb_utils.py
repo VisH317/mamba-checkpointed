@@ -1,4 +1,5 @@
-from torch import Tensor, empty
+import torch
+from torch import Tensor
 
 n_to_idx = {
     "a": 0,
@@ -20,13 +21,30 @@ n_to_idx = {
     "<MASK>": 16
 }
 
-def tokenize(dna: str) -> Tensor:
-    li = empty((len(dna)))
+MAX_SEQ_LEN = 512
+
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+
+def tokenize(dna: str, max_len: int = MAX_SEQ_LEN) -> Tensor:
+    if len(dna) > 512: dna = dna[:512]
+    li = torch.empty(tuple([MAX_SEQ_LEN]), dtype=torch.int64)
     for i, nuc in enumerate(dna.lower()):
         li[i] = n_to_idx[nuc]
+    if len(dna) < 512:
+        for i in range(512 - len(dna), 512): li[i] = n_to_idx["n"]
+
     return li
 
-def collate(data: list[tuple[str], Tensor]) -> tuple[Tensor, Tensor]:
+def collate(data: list[tuple[str, Tensor]]) -> tuple[Tensor, Tensor]:
     ten_li = []
-    for seq in data[0]: ten_li.append(tokenize(seq))
-    return ten_li, data[1]
+
+    for seq in data: ten_li.append(tokenize(seq[0]))
+    target = torch.empty(tuple([len(data)]))
+    for ix, item in enumerate(data): target[ix] = item[1]
+
+    ten_li_t = torch.stack(ten_li, dim=0)
+
+    print(ten_li_t.size(), target.size())
+
+    return ten_li_t.to(device=device), target.to(device=device)
