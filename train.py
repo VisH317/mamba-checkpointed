@@ -69,7 +69,7 @@ def train():
     print("param count: ", pytorch_total_params)
 
     # data setup
-    dataset = Genome("data/genome.fna", existing_data_name="genome.pkl")
+    dataset = Genome("data/genome.fna", existing_data_name="genome_seq.pkl")
     train_data, val_data = random_split(dataset, [0.7, 0.3])
 
     loss_func = nn.CrossEntropyLoss(reduction="mean")
