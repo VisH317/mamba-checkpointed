@@ -25,7 +25,7 @@ vocab_size = len(n_to_idx.keys())
 
 # train config
 n_epochs = 3
-batch_size = 12
+batch_size = 16
 val_batch_size = 4
 val_step = 8
 grad_accum_iter = 8
@@ -48,12 +48,10 @@ def create_mamba():
 
 def train():
 
-    MAX_EPOCH_BATCHES = 10000
-
     #model setup
     embed = nn.Embedding(vocab_size, d_in)
 
-    scaler = torch.cuda.amp.GradScaler()
+    # scaler = torch.cuda.amp.GradScaler()
 
     inner_model = nn.Sequential(
         MambaBlock(d_in, d_model, d_ssm, dt_rank),
@@ -73,8 +71,8 @@ def train():
     train_data, val_data = random_split(dataset, [0.7, 0.3])
 
     loss_func = nn.CrossEntropyLoss(reduction="mean")
-    opt = optim.AdamW(model.parameters(), 4e-3)
-    scheduler = optim.lr_scheduler.ExponentialLR(opt, gamma=0.9)
+    opt = optim.AdamW(model.parameters(), 3e-3)
+    scheduler = optim.lr_scheduler.ExponentialLR(opt, gamma=0.85)
 
     # data
     losses = []
@@ -95,12 +93,14 @@ def train():
                 out = lm_head(model(input))
                 loss = loss_func(out.transpose(2, 1), target)
             
-            scaler.scale(loss).backward()
+            # scaler.scale(loss).backward()
+            loss.backward()
 
             if ix % grad_accum_iter == 0:
-                scaler.step(opt)
+                # scaler.step(opt)
+                opt.step()
                 opt.zero_grad()
-                scaler.update()
+                # scaler.update()
             
             losses.append(loss.item())
             bar.set_description(f"Epoch: {epoch+1}, Loss: {round(losses[-1], 4)}, Val loss: {round(val_losses[-1], 4)}")
