@@ -12,16 +12,16 @@ torch.set_warn_always(False)
 torch.set_default_dtype(torch.float)
 
 # config
-# d_in = 128
-# d_model = 256
-# d_ssm = 256
-# dt_rank = 64
-# vocab_size = len(n_to_idx.keys())
-d_in = 4
-d_model = 8
-d_ssm = 8
-dt_rank = 2
+d_in = 64
+d_model = 128
+d_ssm = 128
+dt_rank = 64
 vocab_size = len(n_to_idx.keys())
+# d_in = 4
+# d_model = 8
+# d_ssm = 8
+# dt_rank = 2
+# vocab_size = len(n_to_idx.keys())
 
 # train config
 n_epochs = 3
@@ -69,7 +69,7 @@ def train():
     print("param count: ", pytorch_total_params)
 
     # data setup
-    dataset = Genome("data/genome.fna", existing_data_name="genome_seq.pkl")
+    dataset = Genome("data/genome.fna", existing_data_name="genome.pkl")
     train_data, val_data = random_split(dataset, [0.7, 0.3])
 
     loss_func = nn.CrossEntropyLoss(reduction="mean")
