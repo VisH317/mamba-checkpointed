@@ -5,15 +5,15 @@ import triton.language as tl
 
 
 class RMSNorm(nn.Module):
-    def __init__(self, affine_transform: bool = True, eps: float = 1e-6):
+    def __init__(self, affine_transform: bool = True, eps: float = 1e-6, dtype: torch.dtype = torch.float32):
         super().__init__()
         self.eps = eps
         self.affine_transform = affine_transform
         
         # kevin was here :D
         if affine_transform:
-            self.beta = nn.Parameter(torch.zeros(1)).cuda()
-            self.gamma = nn.Parameter(torch.ones(1)).cuda()
+            self.beta = nn.Parameter(torch.zeros(1)).cuda().to(dtype=dtype)
+            self.gamma = nn.Parameter(torch.ones(1)).cuda().to(dtype=dtype)
     
     def forward(self, input: Tensor) -> Tensor:
         size = input.size()[-1]

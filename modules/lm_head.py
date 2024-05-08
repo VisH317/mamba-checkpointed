@@ -1,5 +1,6 @@
 import torch
 from torch import nn, Tensor
+import torch.nn.functional as F
 from modules.mamba_utils import RMSNorm
 
 

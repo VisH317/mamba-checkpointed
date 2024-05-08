@@ -44,7 +44,7 @@ n_to_idx = {
 
 
 class Genome(Dataset):
-    def __init__(self, file_name: str, max_seq: int = 5000, num_seq: int = NUM_SEQ, max_len: int = MAX_LEN, existing_data_name: str | None = None) -> None:
+    def __init__(self, file_name: str, max_seq: int = 10, num_seq: int = NUM_SEQ, max_len: int = MAX_LEN, existing_data_name: str | None = None) -> None:
         self.seqs = []
 
         MAX_PER_CHR = max_seq
@@ -64,10 +64,11 @@ class Genome(Dataset):
                         target = torch.as_tensor([n_to_idx[n.lower()] for n in record.seq[r[i].item():(r[i].item() + max_len)]])
 
                         mask_idx = torch.randint(low=0, high=5, size=target.size())
+                        mask = mask_idx == 0
                         li = torch.where(mask_idx==0, torch.full_like(target, 16), target)
 
                         s = set(li)
-                        if not (len(s) <= 3 and 15 in s): self.seqs.append((li, target))
+                        if not (len(s) <= 3 and 15 in s): self.seqs.append((li, target, mask))
 
             with open("genome_seq.pkl", "wb") as f:
                 pickle.dump(self.seqs, f)

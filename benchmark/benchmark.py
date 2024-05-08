@@ -19,8 +19,8 @@ default_config = {
 default_model_config = {
     "d_in": 64,
     "d_model": 128,
-    "d_ssm": 192,
-    "dt_rank": 32
+    "d_ssm": 128,
+    "dt_rank": 64
 }
 
 def finetune(dataset_name: str, pretrained_path: str, train_config: dict = default_config, model_config: dict = default_model_config, has_lmhead: bool = False):
