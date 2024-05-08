@@ -11,7 +11,7 @@ parser.add_argument("pretrained_path", type=str, help="Path to the pretrained mo
 parser.add_argument("--has_lmhead", action="store_true", help="Whether the model has a language model head (default: False)")
 
 # training config
-parser.add_argument("--batch_size", type=int, default=16, help="Batch size (default 16)")
+parser.add_argument("--batch_size", type=int, default=1, help="Batch size (default 16)")
 parser.add_argument("--lr", type=float, default=3e-4, help="Learning Rate (default 3e-4)")
 parser.add_argument("--grad_accum", type=int, default=4, help="Number of steps to run grad accumulation (default 4)")
 parser.add_argument("--dropout_p", type=float, default=0.25, help="Dropout probability (default 0.25)")

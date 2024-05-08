@@ -1,7 +1,7 @@
 import torch
 from torch import nn
 from benchmark.data.gb_train import train_datasets
-from benchmark.data.gb_utils import collate
+from benchmark.data.gb_utils import collate, VOCAB_SIZE
 from train import create_mamba
 from modules.mamba_utils import Pooler, Classifier
 from torch.utils.data import DataLoader
@@ -25,8 +25,8 @@ default_model_config = {
 
 def finetune(dataset_name: str, pretrained_path: str, train_config: dict = default_config, model_config: dict = default_model_config, has_lmhead: bool = False):
     model = create_mamba(model_config, has_lmhead=has_lmhead)
-    pooler = Pooler(model_config["d_model"])
-    classifier = Classifier(model_config["d_model"], 2)
+    pooler = Pooler(VOCAB_SIZE)
+    classifier = Classifier(VOCAB_SIZE, 2)
 
     model.load_state_dict(torch.load(pretrained_path), strict=False)
     model = nn.Sequential(model, pooler, classifier).to(device=torch.device("cuda" if torch.cuda.is_available() else "cpu"))

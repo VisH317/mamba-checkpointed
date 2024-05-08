@@ -76,8 +76,8 @@ def train():
     train_data, val_data = random_split(dataset, [0.7, 0.3])
 
     loss_func = nn.CrossEntropyLoss(reduction="mean")
-    opt = optim.AdamW(model.parameters(), 3e-3)
-    scheduler = optim.lr_scheduler.ExponentialLR(opt, gamma=0.85)
+    opt = optim.AdamW(model.parameters(), 8e-3, betas=(0.95, 0.999))
+    scheduler = optim.lr_scheduler.ExponentialLR(opt, gamma=0.9)
 
     # data
     losses = []

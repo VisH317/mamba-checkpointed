@@ -21,6 +21,8 @@ n_to_idx = {
     "<MASK>": 16
 }
 
+VOCAB_SIZE = len(n_to_idx.keys())
+
 MAX_SEQ_LEN = 512
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
