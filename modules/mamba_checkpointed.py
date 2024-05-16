@@ -6,6 +6,7 @@ import math
 from modules.mamba_utils import RMSNorm
 from mamba_ssm.ops.selective_scan_interface import selective_scan_fn
 from einops import rearrange, repeat
+from transformers import BertForMaskedLM
 from causal_conv1d import causal_conv1d_fn
 
 
@@ -133,7 +134,7 @@ class MambaBlock(nn.Module):
 
         # TODO: ADD GATING TO the CONVOLUTION
         self.x_proj = nn.Linear(d_in, 2 * d_hidden)
-        self.norm = RMSNorm()
+        self.norm = nn.LayerNorm(d_in)
 
         self.x_res_proj = nn.Linear(d_in, d_hidden, bias=False)
         self.out_proj = nn.Linear(d_hidden, d_in)
@@ -243,15 +244,24 @@ class Mamba(nn.Module):
 
         self.d_memory = 64
 
-        self.w_K = nn.Linear(self.d_inner, self.d_memory)
-        self.w_Q = nn.Linear(self.d_inner, self.d_memory)
-        self.w_V = nn.Linear(self.d_inner, self.d_memory)
-        self.w_O = nn.Linear(self.d_memory, self.d_inner)
+        self.n_heads = 8
+
+        self.w_K = nn.Linear(self.d_inner, self.d_memory * self.n_heads, bias=False)
+        self.w_Q = nn.Linear(self.d_inner, self.d_memory * self.n_heads, bias=False)
+        self.w_V = nn.Linear(self.d_inner, self.d_memory * self.n_heads, bias=False)
+        self.w_O = nn.Linear(self.d_memory * self.n_heads, self.d_inner)
         self.w_mlp = nn.Sequential(
             nn.Linear(self.d_inner, self.d_inner * 4, bias=bias),
             nn.SiLU(),
             nn.Linear(self.d_inner * 4, self.d_inner, bias=bias),
+            nn.LayerNorm(self.d_inner)
         )
+
+        nn.init.xavier_uniform_(self.x_proj.weight)
+        nn.init.xavier_normal_(self.w_Q.weight)
+        nn.init.xavier_normal_(self.w_K.weight)
+        nn.init.xavier_normal_(self.w_V.weight)
+        nn.init.xavier_normal_(self.w_O.weight)
 
         self.step = 512
 
@@ -329,19 +339,23 @@ class Mamba(nn.Module):
         memory = y[:, ::self.step, :]
         att = self.w_O(self.global_attention(y, memory))
         # print(att.size(), rearrange(E, "(b l) dstate -> b l dstate", l=seqlen).contiguous().size())
-        # att_gated = att * rearrange(E, "(b l) dstate -> b l dstate", l=seqlen).contiguous()
+        # att_gated = att * rearrange(E, "(b l) dstate -> b l dstate", l=seqlen).contiguous() TEST USING GATED ATTENTION
 
         out = self.w_mlp(y + att)
 
-        return self.out_proj(out + rearrange(x, "b d l -> b l d"))
+        return F.silu(self.out_proj(out + rearrange(x, "b d l -> b l d")))
         # return self.out_proj(y)
 
     def global_attention(self, x: Tensor, memory: Tensor):
-        Q: Tensor = self.w_Q(x)
-        K: Tensor = self.w_K(memory)
-        O_w = F.softmax((Q @ K.transpose(-2, -1)) / torch.sqrt(torch.tensor([self.d_inner]).cuda()), dim=-1) # multiply by the values and weighted the sum!!!!!! poggers in the chat
+        b, l, d = x.size()
+        _b, lm, _d = memory.size()
+        Q: Tensor = self.w_Q(x).view(b, self.n_heads, l, self.d_memory)
+        K: Tensor = self.w_K(memory).view(b, self.n_heads, lm, self.d_memory)
+        O_w = F.scaled_dot_product_attention(Q, K, self.w_V(memory).view(b, self.n_heads, lm, self.d_memory)).permute(0, 2, 1, 3).flatten(-2)
+        return O_w
+        # O_w = F.softmax((Q @ K.transpose(-2, -1)) / torch.sqrt(torch.tensor([self.d_inner]).cuda()), dim=-1) # multiply by the values and weighted the sum!!!!!! poggers in the chat
         # print(O_w.size(), self.w_V(memory).size())
-        return torch.einsum("b o l, b l n -> b o n", O_w, self.w_V(memory))
+        # return torch.einsum("b o l, b l n -> b o n", O_w, self.w_V(memory))
 
 # recurrent implementation (will use later for inference optimization)
         # for i in range(l):

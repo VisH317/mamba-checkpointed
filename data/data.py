@@ -16,7 +16,9 @@ import torch
 # data loading mechanism
 
 NUM_SEQ = 705
-MAX_LEN = 2048
+MAX_LEN = 1024
+MAX_LEN_2 = 32768
+MAX_LEN_3 = 131072
 
 n_to_idx = {
     "a": 0,
@@ -44,7 +46,7 @@ n_to_idx = {
 
 
 class Genome(Dataset):
-    def __init__(self, file_name: str, max_seq: int = 10, num_seq: int = NUM_SEQ, max_len: int = MAX_LEN, existing_data_name: str | None = None) -> None:
+    def __init__(self, file_name: str, max_seq: int = 50, num_seq: int = NUM_SEQ, max_len: int = MAX_LEN_3, existing_data_name: str | None = None) -> None:
         self.seqs = []
 
         MAX_PER_CHR = max_seq
@@ -64,13 +66,22 @@ class Genome(Dataset):
                         target = torch.as_tensor([n_to_idx[n.lower()] for n in record.seq[r[i].item():(r[i].item() + max_len)]])
 
                         mask_idx = torch.randint(low=0, high=5, size=target.size())
-                        mask = mask_idx == 0
+                        mask = mask_idx == 0 
                         li = torch.where(mask_idx==0, torch.full_like(target, 16), target)
+                        rand_idx = torch.randint_like(li, low=0, high=4)
+                        use_rand = torch.randint_like(li, low=0, high=10)
+                        li = torch.where(torch.logical_and(li==16, use_rand==0), rand_idx, li)
+
+                        rand_idx = torch.randint_like(li, low=0, high=4)
+                        use_rand = torch.randint_like(li, low=0, high=10)
+                        li = torch.where(torch.logical_and(li==16, use_rand==0), target, li)
+
+                        target = torch.where(mask_idx==0, target, torch.full_like(target, -100))
 
                         s = set(li)
                         if not (len(s) <= 3 and 15 in s): self.seqs.append((li, target, mask))
 
-            with open("genome_seq.pkl", "wb") as f:
+            with open("genome_seq_131k.pkl", "wb") as f:
                 pickle.dump(self.seqs, f)
                 logging.info("Data Constructed Successfully")
 
