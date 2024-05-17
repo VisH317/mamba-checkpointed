@@ -251,9 +251,9 @@ class Mamba(nn.Module):
         self.w_V = nn.Linear(self.d_inner, self.d_memory * self.n_heads, bias=False)
         self.w_O = nn.Linear(self.d_memory * self.n_heads, self.d_inner)
         self.w_mlp = nn.Sequential(
-            nn.Linear(self.d_inner, self.d_inner * 4, bias=bias),
+            nn.Linear(self.d_inner, self.d_inner * 4),
             nn.SiLU(),
-            nn.Linear(self.d_inner * 4, self.d_inner, bias=bias),
+            nn.Linear(self.d_inner * 4, self.d_model),
             # RMSNorm(self.d_inner)
         )
 
@@ -347,7 +347,7 @@ class Mamba(nn.Module):
 
         out = self.w_mlp(att)
 
-        return self.out_proj(self.norm2(out + y))
+        return self.norm2(out + y)
         # return self.out_proj(out)
         # return self.out_proj(y)
 
