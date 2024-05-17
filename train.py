@@ -68,11 +68,6 @@ def train(data_path: str):
 
     # scaler = torch.cuda.amp.GradScaler()
 
-    # inner_model = nn.Sequential(
-    #     MambaBlock(d_in, d_model, d_ssm, dt_rank),
-    #     MambaBlock(d_in, d_model, d_ssm, dt_rank),
-    #     MambaBlock(d_in, d_model, d_ssm, dt_rank),
-    # )
     inner_model = nn.Sequential(
         Mamba(d_in),
         Mamba(d_in),
@@ -91,7 +86,7 @@ def train(data_path: str):
 
     # data setup
     dataset = Genome("data/genome.fna", existing_data_name=data_path)
-    train_data, val_data = random_split(dataset, [0.7, 0.3])
+    train_data, val_data = random_split(dataset, [0.75, 0.25])
 
     loss_func = nn.CrossEntropyLoss(reduction="mean", ignore_index=-100)
     opt = optim.AdamW(model.parameters(), 4e-5, betas=(0.9, 0.95), weight_decay=0.1) # worked before: 1.5e-3
@@ -101,7 +96,7 @@ def train(data_path: str):
     damp = batch_size * grad_accum_iter
     total_iters = total // (damp*8)
     warmup = optim.lr_scheduler.LinearLR(opt, start_factor=0.1, total_iters=total_iters)
-    cosine = optim.lr_scheduler.CosineAnnealingLR(opt, T_max=total//damp, eta_min=0.3)
+    # cosine = optim.lr_scheduler.CosineAnnealingLR(opt, T_max=total//damp, eta_min=0.3)
 
     # data
     losses = []
@@ -115,12 +110,6 @@ def train(data_path: str):
         val_loader_iter = iter(val_loader)
 
         logging.info("Data Loaded!")
-
-        # test_input = torch.ones(2048, dtype=torch.int64).cuda()
-        # test_input[320] = 16
-        # target = torch.full_like(test_input, -100, dtype=torch.int64).cuda()
-        # target[320] = 1
-        # reuse_data = test_input.unsqueeze(0), target.unsqueeze(0)
 
         opt.zero_grad()
         for ix, data in (bar := tqdm(enumerate(train_loader), desc=f"Epoch: {epoch+1}, Loss: N/A, Val: N/A", total=len(train_data)//batch_size)):
