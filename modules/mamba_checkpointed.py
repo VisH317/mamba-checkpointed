@@ -266,6 +266,7 @@ class Mamba(nn.Module):
         self.step = 512
 
         self.norm1 = RMSNorm(self.d_inner)
+        self.norm2 = RMSNorm(self.d_inner)
 
 
     def forward(self, hidden_states, inference_params=None):
@@ -338,12 +339,13 @@ class Mamba(nn.Module):
             ssm_state.copy_(last_state)
 
         y = rearrange(y, "b d l -> b l d")
+        y = self.norm1(y)
         memory = y[:, ::self.step, :]
         att = self.w_O(self.global_attention(y, memory))
         # print(att.size(), rearrange(E, "(b l) dstate -> b l dstate", l=seqlen).contiguous().size())
         # att_gated = att * rearrange(E, "(b l) dstate -> b l dstate", l=seqlen).contiguous() TEST USING GATED ATTENTION
 
-        out = self.w_mlp(self.norm1(y + att))
+        out = self.w_mlp(self.norm2(y + att))
 
         # return self.out_proj(out + rearrange(x, "b d l -> b l d"))
         return self.out_proj(out)
