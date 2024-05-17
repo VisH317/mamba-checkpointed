@@ -92,7 +92,7 @@ def train(data_path: str):
     train_data, val_data = random_split(dataset, [0.7, 0.3])
 
     loss_func = nn.CrossEntropyLoss(reduction="mean", ignore_index=-100)
-    opt = optim.Adam(model.parameters(), 3e-4, betas=(0.9, 0.95), weight_decay=0.1) # worked before: 1.5e-3
+    opt = optim.Adam(model.parameters(), 5e-4, betas=(0.9, 0.95), weight_decay=0.1) # worked before: 1.5e-3
     # opt = optim.SGD(model.parameters(), lr=5e-4)
     # scheduler = optim.lr_scheduler.ExponentialLR(opt, gamma=0.9)
     total = len(train_data) * n_epochs
