@@ -254,7 +254,7 @@ class Mamba(nn.Module):
             nn.Linear(self.d_inner, self.d_inner * 4, bias=bias),
             nn.SiLU(),
             nn.Linear(self.d_inner * 4, self.d_inner, bias=bias),
-            RMSNorm(self.d_inner)
+            # RMSNorm(self.d_inner)
         )
 
         nn.init.xavier_uniform_(self.x_proj.weight)
@@ -339,16 +339,16 @@ class Mamba(nn.Module):
             ssm_state.copy_(last_state)
 
         y = rearrange(y, "b d l -> b l d")
-        y = self.norm1(y)
+        y = self.norm1(y + rearrange(x, "b d l -> b l d"))
         memory = y[:, ::self.step, :]
         att = self.w_O(self.global_attention(y, memory))
         # print(att.size(), rearrange(E, "(b l) dstate -> b l dstate", l=seqlen).contiguous().size())
         # att_gated = att * rearrange(E, "(b l) dstate -> b l dstate", l=seqlen).contiguous() TEST USING GATED ATTENTION
 
-        out = self.w_mlp(self.norm2(y + att))
+        out = self.w_mlp(att)
 
-        # return self.out_proj(out + rearrange(x, "b d l -> b l d"))
-        return self.out_proj(out)
+        return self.out_proj(self.norm2(out + y))
+        # return self.out_proj(out)
         # return self.out_proj(y)
 
     def global_attention(self, x: Tensor, memory: Tensor):
