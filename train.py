@@ -92,7 +92,7 @@ def train(data_path: str):
     train_data, val_data = random_split(dataset, [0.7, 0.3])
 
     loss_func = nn.CrossEntropyLoss(reduction="mean", ignore_index=-100)
-    opt = optim.AdamW(model.parameters(), 1.5e-3, betas=(0.9, 0.95), weight_decay=0.1) # worked before: 1.5e-3
+    opt = optim.Adam(model.parameters(), 3e-4, betas=(0.9, 0.95), weight_decay=0.1) # worked before: 1.5e-3
     # opt = optim.SGD(model.parameters(), lr=5e-4)
     # scheduler = optim.lr_scheduler.ExponentialLR(opt, gamma=0.9)
     total = len(train_data) * n_epochs
@@ -121,7 +121,7 @@ def train(data_path: str):
         # reuse_data = test_input.unsqueeze(0), target.unsqueeze(0)
 
         opt.zero_grad()
-        for ix, data in (bar := tqdm(enumerate(train_loader), desc=f"Epoch: {epoch+1}, Loss: N/A, Val: N/A", total=max(max_epoch_len, len(train_data)//batch_size))):
+        for ix, data in (bar := tqdm(enumerate(train_loader), desc=f"Epoch: {epoch+1}, Loss: N/A, Val: N/A", total=len(train_data)//batch_size)):
             # if ix == 0: reuse_data = data
             input, target = data
             # if ix % 10 == 0: print(target.numel(), (target==-100).count_nonzero())
@@ -143,8 +143,8 @@ def train(data_path: str):
 
             if ix % grad_accum_iter == 0:
                 # scaler.step(opt)
-                nn.utils.clip_grad_norm_(model.parameters(), 2)
-                nn.utils.clip_grad_norm_(lm_head.parameters(), 2)
+                nn.utils.clip_grad_norm_(model.parameters(), 1)
+                nn.utils.clip_grad_norm_(lm_head.parameters(), 1)
                 opt.step()
                 opt.zero_grad()
                 warmup.step()
@@ -152,7 +152,6 @@ def train(data_path: str):
                 # if ix != 0: print(sum(losses[-16:])/16)
                 # scaler.update()
             
-            if ix >= max_epoch_len: break
             bar.set_description(f"Epoch: {epoch+1}, Loss: {round(losses[-1], 4)}, Acc: {round(accuracies[-1], 3)}")
 
             if ix % val_step == 0:
